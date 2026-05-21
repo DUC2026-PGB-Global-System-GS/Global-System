@@ -2,7 +2,7 @@ import os
 import asyncio
 from dotenv import load_dotenv
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
-from handlers.commands import start_command, help_command
+from handlers.commands import start_command, help_command, share_location_command, track_command
 from handlers.messages import handle_normal_message
 
 # 🔥 បន្ថែមបណ្ណាល័យ aiohttp ដើម្បីបង្កើត Web Server សម្រាប់បោក Render
@@ -41,6 +41,8 @@ async def main():
     # បន្ថែម Handlers ដូចមុន
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("share_location", share_location_command))
+    application.add_handler(CommandHandler("track", track_command))
     application.add_handler(MessageHandler(filters.TEXT | filters.CONTACT | filters.LOCATION, handle_normal_message))
 
     # រត់ Bot រហូត

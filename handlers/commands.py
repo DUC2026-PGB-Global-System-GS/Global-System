@@ -101,8 +101,13 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🙏 ដើម្បីភាពងាយស្រួលក្នុងការទទួលទិន្នន័យអីវ៉ាន់ និងការទាក់ទងពីអ្នកដឹកជញ្ជូន "
             "សូមចុចប៊ូតុងខាងក្រោមដើម្បីចែករំលែកលេខទូរសព្ទរបស់អ្នកជាមុនសិនបាទ។"
         )
-        keyboard = [[{"text": "📱 ចុចផ្ញើលេខទូរសព្ទដើម្បីចុះឈ្មោះ", "request_contact": True}]]
-        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
+        keyboard = [
+            [{"text": "📱 ចែកលេខទូរសព្ទ", "request_contact": True}],
+            [{"text": "📍 ផ្ញើទីតាំង", "request_location": True}],
+            [{"text": "📦 ពិនិត្យមើលអីវ៉ាន់បច្ចុប្បន្ន"}],
+            [{"text": "📞 ទាក់ទងភ្នាក់ងារផ្ទាល់"}]
+        ]
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
         await update.message.reply_text(welcome_text, reply_markup=reply_markup)
 
     # ករណីទី ២៖ រកឃើញ ID = USER OLD
@@ -145,6 +150,38 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = (
         "💡 ការណែនាំអំពីបញ្ជា (Commands)៖\n\n"
         "/start - ពិនិត្យមើលគណនី និងប្រវត្តិផ្ញើ\n"
-        "/help - មើលការណែនាំឡើងវិញ"
+        "/help - មើលការណែនាំឡើងវិញ\n"
+        "/share_location - ផ្ញើទីតាំងទៅកាន់អ្នកដឹកជញ្ជូន\n"
+        "/track - តាមដានស្ថានភាពអីវ៉ាន់"
     )
     await update.message.reply_text(help_text)
+
+async def share_location_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [[{"text": "📍 ផ្ញើទីតាំង", "request_location": True}]]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
+    await update.message.reply_text(
+        "📍 សូមចុចប៊ូតុងខាងក្រោមដើម្បីផ្ញើទីតាំងបច្ចុប្បន្នក្នុងជំរាបអ្នកដឹកជញ្ជូន។",
+        reply_markup=reply_markup
+    )
+
+async def track_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    user_id = user.id
+    conn = sqlite3.connect("delivery_bot.db")
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT item_details, status, dispatch_date FROM dispatches WHERE customer_id = ? ORDER BY dispatch_id DESC LIMIT 1",
+        (user_id,)
+    )
+    active_delivery = cursor.fetchone()
+    conn.close()
+    if active_delivery:
+        status_emoji = "🚴" if active_delivery[1] == "កំពុងដឹកជញ្ជូន" else "✅"
+        await update.message.reply_text(
+            f"📦 ព័ត៌មានតាមដានអីវ៉ាន់:\n"
+            f"ឈ្មោះអីវ៉ាន់៖ `{active_delivery[0]}`\n"
+            f"ស្ថានភាព៖ {status_emoji} `{active_delivery[1]}`\n"
+            f"កាលបរិច្ឆេទ៖ {active_delivery[2]}"
+        )
+    else:
+        await update.message.reply_text("📦 មិនមានការដឹកជញ្ជូនពេលនេះទេ។ សូមបញ្ចូលលេខទូរសព្ទ ហើយឈ្មោះអីវ៉ាន់របស់អតិថិជន។")
