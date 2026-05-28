@@ -3,7 +3,7 @@ from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes
 
 # ========================================================
-# 1. បង្កើត និងរៀបចំ DATABASE (DATABASE SETUP)
+# 1. បង្កើត និងរៀបចំ DATABASE (DATABASE SETUP) Net Update
 # ========================================================
 def init_db():
     conn = sqlite3.connect("delivery_bot.db")
@@ -32,7 +32,7 @@ def init_db():
         )
     """)
 
-    # 🔥 បន្ថែមថ្មី៖ Table សម្រាប់ប្រព័ន្ធដឹកជញ្ជូនរហ័សរបស់ Driver (Dispatch System)
+    # 🔥 បន្ថែមថ្មី៖ Table សម្រាប់ប្រព័ន្ធដឹកជញ្ជូនរហ័សរបស់ Driver (Dispatch System) 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS dispatches (
             dispatch_id INTEGER PRIMARY KEY AUTOINCREMENT,
