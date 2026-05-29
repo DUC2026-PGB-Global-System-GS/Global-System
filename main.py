@@ -5,15 +5,18 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from handlers.commands import start_command, help_command, share_location_command, scan_location_command, track_command
 from handlers.messages import handle_normal_message
 
+# 🔥 ហៅការទាញយកការកំណត់ (Settings) ពី config មកប្រើ
+from config import settings as SETTINGS
+
 # 🔥 បន្ថែមបណ្ណាល័យ aiohttp ដើម្បីបង្កើត Web Server សម្រាប់បោក Render
 from aiohttp import web
 
-load_dotenv()
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+# ប្រើប្រាស់ BOT_TOKEN ដែលបានផ្ទៀងផ្ទាត់រួចជាស្រេចពី config
+BOT_TOKEN = SETTINGS.BOT_TOKEN
 
 # មុខងារស្វាគមន៍ពេល Render មកពិនិត្យមើល Port (Health Check)
 async def handle_health_check(request):
-    return web.Response(text="Bot is running successfully!")
+    return web.Response(text="Bot is running successfully with Online Database!")
 
 async def main():
     # ----------------------------------------------------
@@ -22,7 +25,7 @@ async def main():
     app_web = web.Application()
     app_web.router.add_get('/', handle_health_check)
     
-    # ចាប់យក Port  ពី Render (Render ផ្តល់ឱ្យតាមរយៈ Environment Variable ឈ្មោះ PORT)
+    # ចាប់យក Port ពី Render (Render ផ្តល់ឱ្យតាមរយៈ Environment Variable ឈ្មោះ PORT)
     port = int(os.environ.get("PORT", 8080))
     runner = web.AppRunner(app_web)
     await runner.setup()
@@ -38,7 +41,7 @@ async def main():
     print("🤖 Telegram Bot is starting...")
     application = Application.builder().token(BOT_TOKEN).build()
 
-    # បន្ថែម Handlers ដូចមុន
+    # បន្ថែម Handlers
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("share_location", share_location_command))
@@ -50,6 +53,7 @@ async def main():
     async with application:
         await application.initialize()
         await application.start()
+        print("🚀 Bot is running successfully with Online Database!")
         await application.updater.start_polling()
         
         # រក្សាឱ្យកម្មវិធីរត់ទាំងពីរព្រមគ្នាដោយមិនបិទ

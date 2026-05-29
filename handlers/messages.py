@@ -23,44 +23,46 @@ async def handle_normal_message(update: Update, context: ContextTypes.DEFAULT_TY
     if message.location:
         lat = message.location.latitude
         lng = message.location.longitude
-        # បង្កើត Link Google Maps ដែលមានទម្រង់ត្រឹមត្រូវ
-        google_map_url = f"https://www.google.com/maps?q={lat},{lng}"
+        # 🔥 កែសម្រួល៖ បង្កើត Link Google Maps ឱ្យត្រូវទម្រង់ស្តង់ដារសកល
+        google_map_url = f"https://maps.google.com/?q={lat},{lng}"
         
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # ស្វែងរកការដឹកជញ្ជូនចុងក្រោយរបស់អតិថិជនម្នាក់នេះ
-        cursor.execute(
-            "SELECT dispatch_id, driver_id, item_details FROM dispatches WHERE customer_id = %s ORDER BY dispatch_id DESC LIMIT 1", 
-            (user_id,)
-        )
-        delivery_data = cursor.fetchone()
-        
-        if delivery_data:
-            dispatch_id, driver_id, item_details = delivery_data
+        try:
+            # ស្វែងរកការដឹកជញ្ជូនចុងក្រោយរបស់អតិថិជនម្នាក់នេះ
+            cursor.execute(
+                "SELECT dispatch_id, driver_id, item_details FROM dispatches WHERE customer_id = %s ORDER BY dispatch_id DESC LIMIT 1", 
+                (user_id,)
+            )
+            delivery_data = cursor.fetchone()
             
-            # រក្សាទុកលីងទីតាំងចូល Online Database
-            cursor.execute("UPDATE dispatches SET customer_location = %s WHERE dispatch_id = %s", (google_map_url, dispatch_id))
-            conn.commit()
-            
-            await message.reply_text("📍 ✅ ទីតាំងរបស់អ្នកត្រូវបានបញ្ជូនទៅកាន់អ្នកដឹកជញ្ជូនរួចរាល់ហើយ! សូមរង់ចាំបន្តិចណា។")
-            
-            # 🔥 ផ្ញើទីតាំង និងលីង Map ទៅកាន់ Telegram របស់អ្នកដឹកជញ្ជូន (Driver) ភ្លាមៗអូតូ
-            try:
-                driver_text = (
-                    f"🔔 ⚡ ហ្វ្រាំងៗ Driver! អតិថិជនបានផ្ញើទីតាំងមកហើយ៖\n"
-                    f"📦 អីវ៉ាន់៖ `{item_details}`\n"
-                    f"📍 ទីតាំងនៅលើផែនទី៖ {google_map_url}"
-                )
-                await context.bot.send_message(chat_id=driver_id, text=driver_text)
-                await context.bot.send_location(chat_id=driver_id, latitude=lat, longitude=lng)
-            except Exception:
-                pass
-        else:
-            await message.reply_text("❌ មិនអាចផ្ញើទីតាំងបានទេ ព្រោះប្រព័ន្ធរកមិនឃើញទិន្នន័យដឹកជញ្ជូនរបស់អ្នកឡើយ។")
-            
-        cursor.close()
-        conn.close()
+            if delivery_data:
+                dispatch_id, driver_id, item_details = delivery_data
+                
+                # រក្សាទុកលីងទីតាំងចូល Online Database
+                cursor.execute("UPDATE dispatches SET customer_location = %s WHERE dispatch_id = %s", (google_map_url, dispatch_id))
+                conn.commit()
+                
+                await message.reply_text("📍 ✅ ទីតាំងរបស់អ្នកត្រូវបានបញ្ជូនទៅកាន់អ្នកដឹកជញ្ជូនរួចរាល់ហើយ! សូមរង់ចាំបន្តិចណា។")
+                
+                # 🔥 ផ្ញើទីតាំង និងលីង Map ទៅកាន់ Telegram របស់អ្នកដឹកជញ្ជូន (Driver) ភ្លាមៗអូតូ
+                try:
+                    driver_text = (
+                        f"🔔 ⚡ ហ្វ្រាំងៗ Driver! អតិថិជនបានផ្ញើទីតាំងមកហើយ៖\n"
+                        f"📦 អីវ៉ាន់៖ `{item_details}`\n"
+                        f"📍 ទីតាំងនៅលើផែនទី៖ {google_map_url}"
+                    )
+                    await context.bot.send_message(chat_id=driver_id, text=driver_text)
+                    await context.bot.send_location(chat_id=driver_id, latitude=lat, longitude=lng)
+                except Exception:
+                    pass
+            else:
+                await message.reply_text("❌ មិនអាចផ្ញើទីតាំងបានទេ ព្រោះប្រព័ន្ធរកមិនឃើញទិន្នន័យដឹកជញ្ជូនរបស់អ្នកឡើយ។")
+        finally:
+            # 🔥 ការពារ៖ ធានាថា Cursor និង Connection ត្រូវតែបិទជានិច្ច ទោះជាផ្ញើសារជោគជ័យឬអត់
+            cursor.close()
+            conn.close()
         return
 
     # ========================================================
@@ -72,11 +74,13 @@ async def handle_normal_message(update: Update, context: ContextTypes.DEFAULT_TY
         
         conn = get_db_connection()
         cursor = conn.cursor()
-        # កែទម្រង់ Query ទៅជា %s សម្រាប់ PostgreSQL
-        cursor.execute("UPDATE users SET phone = %s WHERE user_id = %s", (phone_number, contact_user_id))
-        conn.commit()
-        cursor.close()
-        conn.close()
+        try:
+            # កែទម្រង់ Query ទៅជា %s សម្រាប់ PostgreSQL
+            cursor.execute("UPDATE users SET phone = %s WHERE user_id = %s", (phone_number, contact_user_id))
+            conn.commit()
+        finally:
+            cursor.close()
+            conn.close()
         
         await message.reply_text(
             f"✅ ជោគជ័យ! បានកត់ត្រាលេខទូរសព្ទ `{phone_number}` រួចរាល់។\n"
@@ -93,10 +97,12 @@ async def handle_normal_message(update: Update, context: ContextTypes.DEFAULT_TY
     if text_received == "📦 ពិនិត្យមើលអីវ៉ាន់បច្ចុប្បន្ន":
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT item_details, status, dispatch_date FROM dispatches WHERE customer_id = %s ORDER BY dispatch_id DESC LIMIT 1", (user_id,))
-        active_delivery = cursor.fetchone()
-        cursor.close()
-        conn.close()
+        try:
+            cursor.execute("SELECT item_details, status, dispatch_date FROM dispatches WHERE customer_id = %s ORDER BY dispatch_id DESC LIMIT 1", (user_id,))
+            active_delivery = cursor.fetchone()
+        finally:
+            cursor.close()
+            conn.close()
         
         if active_delivery:
             status_emoji = "🚴" if active_delivery[1] == "កំពុងដឹកជញ្ជូន" else "✅"
@@ -130,60 +136,61 @@ async def handle_normal_message(update: Update, context: ContextTypes.DEFAULT_TY
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # ស្វែងរកលេខទូរសព្ទបែបឆ្លាតវៃ (ឆែកទាំងទម្រង់មាន 0 និងមាន 855)
-        phone_variant1 = customer_phone
-        phone_variant2 = f"855{customer_phone[1:]}" if customer_phone.startswith("0") else customer_phone
-        phone_variant3 = f"0{customer_phone[3:]}" if customer_phone.startswith("855") else customer_phone
-        
-        cursor.execute(
-            "SELECT user_id, first_name FROM users WHERE phone IN (%s, %s, %s)", 
-            (phone_variant1, phone_variant2, phone_variant3)
-        )
-        customer_data = cursor.fetchone()
-        
-        if customer_data:
-            cust_id, cust_name = customer_data
+        try:
+            # ស្វែងរកលេខទូរសព្ទបែបឆ្លាតវៃ (ឆែកទាំងទម្រង់មាន 0 និងមាន 855)
+            phone_variant1 = customer_phone
+            phone_variant2 = f"855{customer_phone[1:]}" if customer_phone.startswith("0") else customer_phone
+            phone_variant3 = f"0{customer_phone[3:]}" if customer_phone.startswith("855") else customer_phone
+            
             cursor.execute(
-                "INSERT INTO dispatches (driver_id, customer_phone, customer_id, item_details) VALUES (%s, %s, %s, %s)",
-                (user_id, customer_phone, cust_id, item_details)
+                "SELECT user_id, first_name FROM users WHERE phone IN (%s, %s, %s)", 
+                (phone_variant1, phone_variant2, phone_variant3)
             )
-            conn.commit()
+            customer_data = cursor.fetchone()
             
-            await message.reply_text(f"✅ អតិថិជនចាស់ឈ្មោះ {cust_name} មានក្នុងប្រព័ន្ធ!\n🚀 ប្រព័ន្ធបានផ្ញើសារដំណឹងទៅគាត់អូតូហើយ។")
-            
-            try:
-                notify_text = (
-                    f"🔔 ជំរាបសួរ លោក/អ្នក {cust_name}!\n"
-                    f"📦 អីវ៉ាន់របស់អ្នកគឺ `{item_details}` កំពុងត្រូវបានដឹកជញ្ជូនមកហើយ。\n\n"
-                    f"👇 សូមចុចប៊ូតុងខាងក្រោមដើម្បីផ្ញើទីតាំង 📍 ទៅកាន់អ្នកដឹកជញ្ជូនបាទបាទ🏼"
+            if customer_data:
+                cust_id, cust_name = customer_data
+                cursor.execute(
+                    "INSERT INTO dispatches (driver_id, customer_phone, customer_id, item_details) VALUES (%s, %s, %s, %s)",
+                    (user_id, customer_phone, cust_id, item_details)
                 )
-                await context.bot.send_message(chat_id=cust_id, text=notify_text)
-            except Exception:
-                await message.reply_text("⚠️ ប្រព័ន្ធមិនអាចផ្ញើសារទៅកាន់អតិថិជនបានទេ ព្រោះគាត់អាចនឹងបិទ Bot ចោល។")
-        else:
-            # ករណីរកមិនឃើញលេខទូរសព្ទ = អតិថិជនថ្មី (New User)
-            cursor.execute(
-                "INSERT INTO dispatches (driver_id, customer_phone, item_details) VALUES (%s, %s, %s)",
-                (user_id, customer_phone, item_details)
-            )
-            conn.commit()
-            
-            # ទាញយក ID ចុងក្រោយដែលទើបតែ Insert លើ PostgreSQL
-            cursor.execute("SELECT lastval()")
-            dispatch_id = cursor.fetchone()[0]
-            
-            bot_username = (await context.bot.get_me()).username
-            invite_link = f"https://t.me/{bot_username}?start=dispatch_{dispatch_id}"
-            
-            response_msg = (
-                f"🔍 រកមិនឃើញលេខទូរសព្ទនេះទេ (អតិថិជនថ្មី)!\n\n"
-                f"👉🔗 សូមផ្ញើ Link នេះទៅកាន់គាត់ ដើម្បីឱ្យគាត់ចុច Start និងមើលព័ត៌មាន៖\n\n"
-                f"{invite_link}"
-            )
-            await message.reply_text(response_msg)
-            
-        cursor.close()
-        conn.close()
+                conn.commit()
+                
+                await message.reply_text(f"✅ អតិថិជនចាស់ឈ្មោះ {cust_name} មានក្នុងប្រព័ន្ធ!\n🚀 ប្រព័ន្ធបានផ្ញើសារដំណឹងទៅគាត់អូតូហើយ។")
+                
+                try:
+                    notify_text = (
+                        f"🔔 ជំរាបសួរ លោក/អ្នក {cust_name}!\n"
+                        f"📦 អីវ៉ាន់របស់អ្នកគឺ `{item_details}` កំពុងត្រូវបានដឹកជញ្ជូនមកហើយ។\n\n"
+                        f"👇 សូមចុចប៊ូតុងខាងក្រោមដើម្បីផ្ញើទីតាំង 📍 ទៅកាន់អ្នកដឹកជញ្ជូនបាទបាទ🏼"
+                    )
+                    await context.bot.send_message(chat_id=cust_id, text=notify_text)
+                except Exception:
+                    await message.reply_text("⚠️ ប្រព័ន្ធមិនអាចផ្ញើសារទៅកាន់អតិថិជនបានទេ ព្រោះគាត់អាចនឹងបិទ Bot ចោល។")
+            else:
+                # ករណីរកមិនឃើញលេខទូរសព្ទ = អតិថិជនថ្មី (New User)
+                cursor.execute(
+                    "INSERT INTO dispatches (driver_id, customer_phone, item_details) VALUES (%s, %s, %s)",
+                    (user_id, customer_phone, item_details)
+                )
+                conn.commit()
+                
+                # ទាញយក ID ចុងក្រោយដែលទើបតែ Insert លើ PostgreSQL
+                cursor.execute("SELECT lastval()")
+                dispatch_id = cursor.fetchone()[0]
+                
+                bot_username = (await context.bot.get_me()).username
+                invite_link = f"https://t.me/{bot_username}?start=dispatch_{dispatch_id}"
+                
+                response_msg = (
+                    f"🔍 រកមិនឃើញលេខទូរសព្ទនេះទេ (អតិថិជនថ្មី)!\n\n"
+                    f"👉🔗 សូមផ្ញើ Link នេះទៅកាន់គាត់ ដើម្បីឱ្យគាត់ចុច Start និងមើលព័ត៌មាន៖\n\n"
+                    f"{invite_link}"
+                )
+                await message.reply_text(response_msg)
+        finally:
+            cursor.close()
+            conn.close()
         return
 
     await message.reply_text("💡 ដើម្បីបញ្ចូលអីវ៉ាន់ថ្មី សូមវាយទម្រង់៖ `លេខទូរសព្ទ - ឈ្មោះអីវ៉ាន់`")
