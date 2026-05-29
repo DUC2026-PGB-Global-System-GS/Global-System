@@ -4,7 +4,6 @@ from dotenv import load_dotenv
 # ផ្ទុកទិន្នន័យពី .env ចូលទៅក្នុង System Environment
 load_dotenv()
 
-# ទាញយក Token មកប្រើ
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_IDS = [int(x.strip()) for x in os.getenv("ADMIN_IDS", "").split(",") if x.strip().isdigit()]
 
