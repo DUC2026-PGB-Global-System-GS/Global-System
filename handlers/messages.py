@@ -31,8 +31,9 @@ async def handle_normal_message(update: Update, context: ContextTypes.DEFAULT_TY
         
         try:
             # ស្វែងរកការដឹកជញ្ជូនចុងក្រោយរបស់អតិថិជនម្នាក់នេះ
-            cursor.execute(
-                "SELECT dispatch_id, driver_id, item_details FROM dispatches WHERE customer_id = %s ORDER BY dispatch_id DESC LIMIT 1", 
+            SETTINGS.execute_query(
+                cursor,
+                "SELECT dispatch_id, driver_id, item_details FROM dispatches WHERE customer_id = %s ORDER BY dispatch_id DESC LIMIT 1",
                 (user_id,)
             )
             delivery_data = cursor.fetchone()
@@ -41,7 +42,7 @@ async def handle_normal_message(update: Update, context: ContextTypes.DEFAULT_TY
                 dispatch_id, driver_id, item_details = delivery_data
                 
                 # រក្សាទុកលីងទីតាំងចូល Online Database
-                cursor.execute("UPDATE dispatches SET customer_location = %s WHERE dispatch_id = %s", (google_map_url, dispatch_id))
+                SETTINGS.execute_query(cursor, "UPDATE dispatches SET customer_location = %s WHERE dispatch_id = %s", (google_map_url, dispatch_id))
                 conn.commit()
                 
                 await message.reply_text("📍 ✅ ទីតាំងរបស់អ្នកត្រូវបានបញ្ជូនទៅកាន់អ្នកដឹកជញ្ជូនរួចរាល់ហើយ! សូមរង់ចាំបន្តិចណា។")
@@ -76,7 +77,7 @@ async def handle_normal_message(update: Update, context: ContextTypes.DEFAULT_TY
         cursor = conn.cursor()
         try:
             # កែទម្រង់ Query ទៅជា %s សម្រាប់ PostgreSQL
-            cursor.execute("UPDATE users SET phone = %s WHERE user_id = %s", (phone_number, contact_user_id))
+            SETTINGS.execute_query(cursor, "UPDATE users SET phone = %s WHERE user_id = %s", (phone_number, contact_user_id))
             conn.commit()
         finally:
             cursor.close()
@@ -98,7 +99,11 @@ async def handle_normal_message(update: Update, context: ContextTypes.DEFAULT_TY
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute("SELECT item_details, status, dispatch_date FROM dispatches WHERE customer_id = %s ORDER BY dispatch_id DESC LIMIT 1", (user_id,))
+            SETTINGS.execute_query(
+                cursor,
+                "SELECT item_details, status, dispatch_date FROM dispatches WHERE customer_id = %s ORDER BY dispatch_id DESC LIMIT 1",
+                (user_id,)
+            )
             active_delivery = cursor.fetchone()
         finally:
             cursor.close()
@@ -142,15 +147,17 @@ async def handle_normal_message(update: Update, context: ContextTypes.DEFAULT_TY
             phone_variant2 = f"855{customer_phone[1:]}" if customer_phone.startswith("0") else customer_phone
             phone_variant3 = f"0{customer_phone[3:]}" if customer_phone.startswith("855") else customer_phone
             
-            cursor.execute(
-                "SELECT user_id, first_name FROM users WHERE phone IN (%s, %s, %s)", 
+            SETTINGS.execute_query(
+                cursor,
+                "SELECT user_id, first_name FROM users WHERE phone IN (%s, %s, %s)",
                 (phone_variant1, phone_variant2, phone_variant3)
             )
             customer_data = cursor.fetchone()
             
             if customer_data:
                 cust_id, cust_name = customer_data
-                cursor.execute(
+                SETTINGS.execute_query(
+                    cursor,
                     "INSERT INTO dispatches (driver_id, customer_phone, customer_id, item_details) VALUES (%s, %s, %s, %s)",
                     (user_id, customer_phone, cust_id, item_details)
                 )
@@ -169,15 +176,15 @@ async def handle_normal_message(update: Update, context: ContextTypes.DEFAULT_TY
                     await message.reply_text("⚠️ ប្រព័ន្ធមិនអាចផ្ញើសារទៅកាន់អតិថិជនបានទេ ព្រោះគាត់អាចនឹងបិទ Bot ចោល។")
             else:
                 # ករណីរកមិនឃើញលេខទូរសព្ទ = អតិថិជនថ្មី (New User)
-                cursor.execute(
+                SETTINGS.execute_query(
+                    cursor,
                     "INSERT INTO dispatches (driver_id, customer_phone, item_details) VALUES (%s, %s, %s)",
                     (user_id, customer_phone, item_details)
                 )
                 conn.commit()
                 
-                # ទាញយក ID ចុងក្រោយដែលទើបតែ Insert លើ PostgreSQL
-                cursor.execute("SELECT lastval()")
-                dispatch_id = cursor.fetchone()[0]
+                # ទាញយក ID ចុងក្រោយដែលទើបតែ Insert
+                dispatch_id = SETTINGS.get_last_insert_id(cursor)
                 
                 bot_username = (await context.bot.get_me()).username
                 invite_link = f"https://t.me/{bot_username}?start=dispatch_{dispatch_id}"

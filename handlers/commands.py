@@ -14,42 +14,71 @@ def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # បង្កើត Table សម្រាប់រក្សាទិន្នន័យអតិថិជន (ប្តូរប្រភេទ ID ទៅជា BIGINT)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            user_id BIGINT PRIMARY KEY,
-            username TEXT,
-            first_name TEXT,
-            phone TEXT DEFAULT NULL,
-            registered_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    
-    # បង្កើត Table សម្រាប់កត់ត្រាការដឹកជញ្ជូនចាស់ (Orders)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS orders (
-            order_id SERIAL PRIMARY KEY,
-            user_id BIGINT,
-            item_name TEXT,
-            status TEXT DEFAULT 'កំពុងរៀបចំ',
-            order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(user_id) REFERENCES users(user_id)
-        )
-    """)
-
-    # 🔥 Table សម្រាប់ប្រព័ន្ធដឹកជញ្ជូនរហ័សរបស់ Driver (Dispatch System) លើ Cloud
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS dispatches (
-            dispatch_id SERIAL PRIMARY KEY,
-            driver_id BIGINT,
-            customer_phone TEXT,
-            customer_id BIGINT DEFAULT NULL,
-            item_details TEXT,
-            customer_location TEXT DEFAULT NULL,
-            status TEXT DEFAULT 'កំពុងដឹកជញ្ជូន',
-            dispatch_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
+    if SETTINGS.DB_BACKEND == "sqlite":
+        cursor.execute("PRAGMA foreign_keys = ON")
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                user_id INTEGER PRIMARY KEY,
+                username TEXT,
+                first_name TEXT,
+                phone TEXT DEFAULT NULL,
+                registered_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS orders (
+                order_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                item_name TEXT,
+                status TEXT DEFAULT 'កំពុងរៀបចំ',
+                order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(user_id) REFERENCES users(user_id)
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS dispatches (
+                dispatch_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                driver_id INTEGER,
+                customer_phone TEXT,
+                customer_id INTEGER DEFAULT NULL,
+                item_details TEXT,
+                customer_location TEXT DEFAULT NULL,
+                status TEXT DEFAULT 'កំពុងដឹកជញ្ជូន',
+                dispatch_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+    else:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                user_id BIGINT PRIMARY KEY,
+                username TEXT,
+                first_name TEXT,
+                phone TEXT DEFAULT NULL,
+                registered_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS orders (
+                order_id SERIAL PRIMARY KEY,
+                user_id BIGINT,
+                item_name TEXT,
+                status TEXT DEFAULT 'កំពុងរៀបចំ',
+                order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(user_id) REFERENCES users(user_id)
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS dispatches (
+                dispatch_id SERIAL PRIMARY KEY,
+                driver_id BIGINT,
+                customer_phone TEXT,
+                customer_id BIGINT DEFAULT NULL,
+                item_details TEXT,
+                customer_location TEXT DEFAULT NULL,
+                status TEXT DEFAULT 'កំពុងដឹកជញ្ជូន',
+                dispatch_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
     
     conn.commit()
     cursor.close()
@@ -82,12 +111,13 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     try:
         # ឆែកមើលទិន្នន័យ User ក្នុង Online Database 
-        cursor.execute("SELECT phone FROM users WHERE user_id = %s", (user_id,))
+        SETTINGS.execute_query(cursor, "SELECT phone FROM users WHERE user_id = %s", (user_id,))
         user_data = cursor.fetchone()
 
         # ករណីទី ១៖ រកមិនឃើញ ID = USER NEW (ចុះឈ្មោះគាត់ចូល Cloud)
         if user_data is None:
-            cursor.execute(
+            SETTINGS.execute_query(
+                cursor,
                 "INSERT INTO users (user_id, username, first_name) VALUES (%s, %s, %s)",
                 (user_id, username, first_name)
             )
@@ -95,7 +125,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             # បើគាត់ចូលមកតាមលីងអីវ៉ាន់ ត្រូវរក្សាទុក ID គាត់ទៅក្នុងទិន្នន័យដឹកជញ្ជូននោះអូតូ
             if dispatch_id:
-                cursor.execute("UPDATE dispatches SET customer_id = %s WHERE dispatch_id = %s", (user_id, int(dispatch_id)))
+                SETTINGS.execute_query(cursor, "UPDATE dispatches SET customer_id = %s WHERE dispatch_id = %s", (user_id, int(dispatch_id)))
                 conn.commit()
 
             welcome_text = (
@@ -111,13 +141,14 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ]
             reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
             await update.message.reply_text(welcome_text, reply_markup=reply_markup)
+            return
 
         # ករណីទី ២៖ រកឃើញ ID = USER OLD (អតិថិជនចាស់)
         else:
             phone_number = user_data[0]
             
             if dispatch_id:
-                cursor.execute("UPDATE dispatches SET customer_id = %s WHERE dispatch_id = %s", (user_id, int(dispatch_id)))
+                SETTINGS.execute_query(cursor, "UPDATE dispatches SET customer_id = %s WHERE dispatch_id = %s", (user_id, int(dispatch_id)))
                 conn.commit()
 
         # 🔥 កែសម្រួលថ្មី៖ ស្វែងរកអីវ៉ាន់ឱ្យមានសុវត្ថិភាព ការពារការជាន់ទិន្នន័យករណីមិនទាន់មានលេខទូរសព្ទ (Null Phone)
@@ -126,15 +157,17 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             phone_variant = f"855{phone_number[1:]}" if phone_number.startswith("0") else phone_number
             phone_variant2 = f"0{phone_number[3:]}" if phone_number.startswith("855") else phone_number
             
-            cursor.execute(
+            SETTINGS.execute_query(
+                cursor,
                 """SELECT item_details, status FROM dispatches 
                    WHERE customer_id = %s OR customer_phone IN (%s, %s, %s) 
-                   ORDER BY dispatch_id DESC LIMIT 1""", 
+                   ORDER BY dispatch_id DESC LIMIT 1""",
                 (user_id, phone_number, phone_variant, phone_variant2)
             )
         else:
-            cursor.execute(
-                "SELECT item_details, status FROM dispatches WHERE customer_id = %s ORDER BY dispatch_id DESC LIMIT 1", 
+            SETTINGS.execute_query(
+                cursor,
+                "SELECT item_details, status FROM dispatches WHERE customer_id = %s ORDER BY dispatch_id DESC LIMIT 1",
                 (user_id,)
             )
             
@@ -219,7 +252,8 @@ async def track_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     try:
-        cursor.execute(
+        SETTINGS.execute_query(
+            cursor,
             "SELECT item_details, status, dispatch_date FROM dispatches WHERE customer_id = %s ORDER BY dispatch_id DESC LIMIT 1",
             (user_id,)
         )
