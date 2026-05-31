@@ -169,7 +169,7 @@ async def handle_normal_message(update: Update, context: ContextTypes.DEFAULT_TY
                     notify_text = (
                         f"🔔 ជំរាបសួរ លោក/អ្នក {cust_name}!\n"
                         f"📦 អីវ៉ាន់របស់អ្នកគឺ `{item_details}` កំពុងត្រូវបានដឹកជញ្ជូនមកហើយ។\n\n"
-                        f"👇 សូមចុចប៊ូតុងខាងក្រោមដើម្បីផ្ញើទីតាំង 📍 ទៅកាន់អ្នកដឹកជញ្ជូនបាទបាទ🏼"
+                        f"👇 សូមចុចប៊ូតុងខាងក្រោមដើម្បីផ្ញើទីតាំង 📍 ទៅកាន់អ្នកដឹកជញ្ជូនបាទបាទ"
                     )
                     await context.bot.send_message(chat_id=cust_id, text=notify_text)
                 except Exception:
