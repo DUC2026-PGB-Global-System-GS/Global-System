@@ -16,6 +16,7 @@ async def handle_normal_message(update: Update, context: ContextTypes.DEFAULT_TY
         return
         
     user_id = message.from_user.id
+    text_received = message.text.strip() if message.text else ""
     
     # ========================================================
     # ១. ករណីអតិថិជនចុចប៊ូតុង 📍 ផ្ញើទីតាំង (Smart Location)
@@ -23,7 +24,7 @@ async def handle_normal_message(update: Update, context: ContextTypes.DEFAULT_TY
     if message.location:
         lat = message.location.latitude
         lng = message.location.longitude
-        # 🔥 កែសម្រួល៖ បង្កើត Link Google Maps ឱ្យត្រូវទម្រង់ស្តង់ដារសកល
+        # 🔥 បានកែសម្រួល៖ បង្កើត Link Google Maps ឱ្យត្រូវទម្រង់ស្តង់ដារសកល និងត្រឹមត្រូវ
         google_map_url = f"https://maps.google.com/?q={lat},{lng}"
         
         conn = get_db_connection()
@@ -84,7 +85,7 @@ async def handle_normal_message(update: Update, context: ContextTypes.DEFAULT_TY
             conn.close()
         
         await message.reply_text(
-            f"✅ ជោគជ័យ! បានកត់ត្រាលេខទូរសព្ទ `{phone_number}` រួចរាល់។\n"
+            f"✅ ជោគជ័យ! បានកត់ត្រាលេខទូរសព្ទ `{phone_number}` រួចរាល់。\n"
             "👉 សូមចុចវាយពាក្យបញ្ជា `/start` ម្តងទៀតដើម្បីចូលទៅកាន់ទំព័រដើម។"
         )
         return
@@ -92,9 +93,6 @@ async def handle_normal_message(update: Update, context: ContextTypes.DEFAULT_TY
     # ========================================================
     # ៣. ករណីចុចប៊ូតុងអត្ថបទនៅលើ Keyboard ធម្មតា
     # ========================================================
-    text_received = message.text.strip() if message.text else ""
-    
-    # ឆែកមើលអីវ៉ាន់បច្ចុប្បន្នសម្រាប់អតិថិជន
     if text_received == "📦 ពិនិត្យមើលអីវ៉ាន់បច្ចុប្បន្ន":
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -110,12 +108,18 @@ async def handle_normal_message(update: Update, context: ContextTypes.DEFAULT_TY
             conn.close()
         
         if active_delivery:
-            status_emoji = "🚴" if active_delivery[1] == "កំពុងដឹកជញ្ជូន" else "✅"
+            if active_delivery[1] == "កំពុងដឹកជញ្ជូន":
+                status_emoji = "🚴"
+            elif active_delivery[1] == "ជិតដល់ហើយ (30%)":
+                status_emoji = "⏳"
+            else:
+                status_emoji = "✅"
+                
             formatted_date = active_delivery[2].strftime('%Y-%m-%d %H:%M') if active_delivery[2] else 'មិនច្បាស់'
             await message.reply_text(
                 f"📦 **ព័ត៌មានអីវ៉ាន់របស់អ្នក៖**\n"
-                f" ឈ្មោះអីវ៉ាន់៖ `{active_delivery[0]}`\n"
-                f" ស្ថានភាព៖ {status_emoji} `{active_delivery[1]}`\n"
+                f"📦 ឈ្មោះអីវ៉ាន់៖ `{active_delivery[0]}`\n"
+                f"📊 ស្ថានភាព៖ {status_emoji} `{active_delivery[1]}`\n"
                 f"📅 កាលបរិច្ឆេទ៖ {formatted_date}"
             )
         else:
@@ -127,7 +131,79 @@ async def handle_normal_message(update: Update, context: ContextTypes.DEFAULT_TY
         return
 
     # ========================================================
-    # ៤. ករណី Driver បញ្ចូលទិន្នន័យ (Format: លេខទូរសព្ទ - ឈ្មោះអីវ៉ាន់)
+    # ៤. 🔥 មុខងារថ្មី៖ ករណី Driver កែប្រែស្ថានភាពអីវ៉ាន់ទៅជា "រួចរាល់" ឬ "30%"
+    # ========================================================
+    if text_received.startswith("រួចរាល់") or text_received.startswith("30%"):
+        parts = text_received.split(None, 1)
+        if len(parts) >= 2:
+            action_type = parts[0].strip()          # "រួចរាល់" ឬ "30%"
+            customer_phone = parts[1].strip().replace("+", "")
+            
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            try:
+                # បង្កើតបំលែងលេខទូរសព្ទដើម្បីស្វែងរកឱ្យកាន់តែឆ្លាតវៃ
+                phone_variant1 = customer_phone
+                phone_variant2 = f"855{customer_phone[1:]}" if customer_phone.startswith("0") else customer_phone
+                phone_variant3 = f"0{customer_phone[3:]}" if customer_phone.startswith("855") else customer_phone
+                
+                # ស្វែងរកទិន្នន័យដឹកជញ្ជូនចុងក្រោយដែលមិនទាន់ជោគជ័យ
+                SETTINGS.execute_query(
+                    cursor,
+                    """SELECT dispatch_id, customer_id, item_details FROM dispatches 
+                       WHERE customer_phone IN (%s, %s, %s) AND status != 'ដឹកជញ្ជូនជោគជ័យ' 
+                       ORDER BY dispatch_id DESC LIMIT 1""",
+                    (phone_variant1, phone_variant2, phone_variant3)
+                )
+                dispatch_data = cursor.fetchone()
+                
+                if dispatch_data:
+                    dispatch_id, cust_id, item_details = dispatch_data
+                    
+                    # កំណត់ស្ថានភាពថ្មី និងសារផ្ញើទៅអតិថិជនទៅតាមលក្ខខណ្ឌ
+                    if action_type == "រួចរាល់":
+                        new_status = "ដឹកជញ្ជូនជោគជ័យ"
+                        notify_text = (
+                            f"📦 **ដំណឹងដឹកជញ្ជូនសប្បាយចិត្ត!**\n\n"
+                            f"អីវ៉ាន់របស់អ្នក៖ `{item_details}` ត្រូវបានប្រគល់ជូនរួចរាល់ហើយបាទ។\n"
+                            f"📊 ស្ថានភាព៖ ✅ `ដឹកជញ្ជូនជោគជ័យ`\n\n"
+                            f"🙏 អរគុណលោកអ្នកដែលបានប្រើប្រាស់សេវាកម្មប្រព័ន្ធដឹកជញ្ជូន GS!"
+                        )
+                    else:  # ករណី "30%"
+                        new_status = "ជិតដល់ហើយ (30%)"
+                        notify_text = (
+                            f"⏳ **ដំណឹងពីអ្នកដឹកជញ្ជូន (Driver)!**\n\n"
+                            f"អីវ៉ាន់របស់អ្នក៖ `{item_details}` គឺធ្វើដំណើរបានជិតដល់ហើយ (សល់ចម្ងាយប្រហែល 30% ទៀត)។\n"
+                            f"📊 ស្ថានភាព៖ ⏳ `ជិតដល់ហើយ (30%)`\n\n"
+                            f"📍 សូមលោកអ្នកត្រៀមខ្លួន ឬផ្ញើទីតាំងចុងក្រោយតាមប៊ូតុងខាងក្រោមបើមិនទាន់បានផ្ញើបាទ។"
+                        )
+                    
+                    # ធ្វើការ Update ចូល Database
+                    SETTINGS.execute_query(
+                        cursor,
+                        "UPDATE dispatches SET status = %s WHERE dispatch_id = %s",
+                        (new_status, dispatch_id)
+                    )
+                    conn.commit()
+                    
+                    await message.reply_text(f"✅ បានកែប្រែស្ថានភាពអីវ៉ាន់លេខទូរសព្ទ `{customer_phone}` ទៅជា [{new_status}] រួចរាល់!")
+                    
+                    # ផ្ញើសារដំណឹងទៅកាន់ Telegram របស់អតិថិជនអូតូភ្លាមៗ
+                    if cust_id:
+                        try:
+                            await context.bot.send_message(chat_id=cust_id, text=notify_text)
+                        except Exception:
+                            await message.reply_text("⚠️ ប្រព័ន្ធមិនអាចផ្ញើសារទៅអតិថិជនបានទេ (គាត់អាចនឹងបិទ/Block Bot ចោល)។")
+                else:
+                    await message.reply_text("❌ រកមិនឃើញទិន្នន័យអីវ៉ាន់ដែលកំពុងដឹកសម្រាប់លេខទូរសព្ទនេះទេ។")
+            finally:
+                cursor.close()
+                conn.close()
+            return
+
+    # ========================================================
+    # ៥. ករណី Driver បញ្ចូលទិន្នន័យដំបូង (Format: លេខទូរសព្ទ - ឈ្មោះអីវ៉ាន់)
     # ========================================================
     if "-" in text_received:
         parts = text_received.split("-", 1)
@@ -168,7 +244,7 @@ async def handle_normal_message(update: Update, context: ContextTypes.DEFAULT_TY
                 try:
                     notify_text = (
                         f"🔔 ជំរាបសួរ លោក/អ្នក {cust_name}!\n"
-                        f"📦 អីវ៉ាន់របស់អ្នកគឺ `{item_details}` កំពុងត្រូវបានដឹកជញ្ជូនមកហើយ។\n\n"
+                        f"📦 អីវ៉ាន់របស់អ្នកគឺ `{item_details}` កំពុងត្រូវបានដឹកជញ្ជូនមកហើយបាទ។\n\n"
                         f"👇 សូមចុចប៊ូតុងខាងក្រោមដើម្បីផ្ញើទីតាំង 📍 ទៅកាន់អ្នកដឹកជញ្ជូនបាទបាទ"
                     )
                     await context.bot.send_message(chat_id=cust_id, text=notify_text)
@@ -200,4 +276,9 @@ async def handle_normal_message(update: Update, context: ContextTypes.DEFAULT_TY
             conn.close()
         return
 
-    await message.reply_text("💡 ដើម្បីបញ្ចូលអីវ៉ាន់ថ្មី សូមវាយទម្រង់៖ `លេខទូរសព្ទ - ឈ្មោះអីវ៉ាន់`")
+    await message.reply_text(
+        "💡 **របៀបប្រើប្រាស់សម្រាប់ Driver:**\n\n"
+        "1️⃣ បញ្ចូលអីវ៉ាន់ថ្មី៖ `លេខទូរសព្ទ - ឈ្មោះអីវ៉ាន់`\n"
+        "2️⃣ ប្ដូរស្ថានភាពជិតដល់៖ `30% លេខទូរសព្ទ`\n"
+        "3️⃣ ប្ដូរស្ថានភាពរួចរាល់៖ `រួចរាល់ លេខទូរសព្ទ`"
+    )
