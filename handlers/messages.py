@@ -85,9 +85,11 @@ async def handle_normal_message(update: Update, context: ContextTypes.DEFAULT_TY
         return
 
     # ========================================================
-    # ៣. ករណីចុចប៊ូតុងអត្ថបទនៅលើ Keyboard ធម្មតា
+    # ៣. 🔥 ករណីចុចប៊ូតុងអត្ថបទនៅលើ Keyboard ធម្មតា (ដោះស្រាយរួចរាល់)
     # ========================================================
-    if text_received == "📦 ពិនិត្យមើលអីវ៉ាន់បច្ចុប្បន្ន":
+    
+    # 3.1 ប៊ូតុងឆែកមើលអីវ៉ាន់បច្ចុប្បន្ន
+    if "ពិនិត្យមើលអីវ៉ាន់បច្ចុប្បន្ន" in text_received:
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
@@ -114,8 +116,41 @@ async def handle_normal_message(update: Update, context: ContextTypes.DEFAULT_TY
             await message.reply_text("📦 ស្ថានភាព៖ មិនទាន់មានអីវ៉ាន់កំពុងដឹកមកជូនអ្នកឡើយទេបាទ។")
         return
 
-    if text_received == "📞 ទាក់ទងភ្នាក់ងារផ្ទាល់":
-        await message.reply_text("📞 លោកអ្នកអាចធ្វើការទាក់ទងទៅកាន់ផ្នែកសេវាអតិថិជនតាមរយៈលេខទូរសព្ទ៖ `096601345` ឬតេតាម Telegram @kbr0003000 បាទ។")
+    # 3.2 ប៊ូតុងមើលប្រវត្តិដឹកជញ្ជូន (ដោះស្រាយបញ្ហាចុចមិនដើរ)
+    if "មើលប្រវត្តិដឹកជញ្ជូន" in text_received:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            SETTINGS.execute_query(
+                cursor,
+                "SELECT item_details, status, dispatch_date FROM dispatches WHERE customer_id = %s AND status = 'ដឹកជញ្ជូនជោគជ័យ' ORDER BY dispatch_id DESC LIMIT 5",
+                (user_id,)
+            )
+            history = cursor.fetchall()
+        finally:
+            cursor.close()
+            conn.close()
+            
+        if history:
+            msg = "📜 **ប្រវត្តិដឹកជញ្ជូន ៥ ដងចុងក្រោយរបស់អ្នក៖**\n\n"
+            for i, item in enumerate(history, 1):
+                date_str = item[2].strftime('%Y-%m-%d') if item[2] else 'មិនច្បាស់'
+                msg += f"{i}. 📦 `{item[0]}` - ✅ រួចរាល់ ({date_str})\n"
+            await message.reply_text(msg)
+        else:
+            await message.reply_text("📜 លោកអ្នកមិនទាន់មានប្រវត្តិដឹកជញ្ជូនជោគជ័យក្នុងប្រព័ន្ធឡើយទេបាទ។")
+        return
+
+    # 3.3 ប៊ូតុងជំនួយការ & ទំនាក់ទំនង (ចាប់យកពាក្យគន្លឹះស៊ីគ្នាជាមួយប៊ូតុងទាំងចាស់ទាំងថ្មី)
+    if "ជំនួយការ" in text_received or "ទាក់ទង" in text_received:
+        help_text = (
+            "📞 **ផ្នែកសេវាអតិថិជន និងជំនួយការ៖**\n\n"
+            "• ☎️ លេខទូរសព្ទ៖ `096601345`\n"
+            "• 💬 Telegram ភ្នាក់ងារ៖ @kbr0003000\n"
+            "• ⏰ ម៉ោងធ្វើការ៖ 8:00 AM - 5:00 PM\n\n"
+            "💡 លោកអ្នកអាចប្រើប្រាស់មុខងារស្វែងរកអីវ៉ាន់រហ័សតាមរយៈ Command: /track រួចវាយលេខកូដអីវ៉ាន់ក៏បាន។"
+        )
+        await message.reply_text(help_text)
         return
 
     # ========================================================
@@ -140,13 +175,14 @@ async def handle_normal_message(update: Update, context: ContextTypes.DEFAULT_TY
             SETTINGS.execute_query(cursor, "SELECT user_id, first_name FROM users WHERE phone IN (%s, %s, %s)", (phone_variant1, phone_variant2, phone_variant3))
             customer_data = cursor.fetchone()
             
-            # បង្កើតប៊ូតុងសម្រាប់ឱ្យ Driver ចុចប្ដូរ Status យ៉ាងងាយស្រួល
-            # យើងផ្ញើទិន្នន័យទៅកាន់ Callback ក្នុងទម្រង់ "action_dispatchID"
             def make_keyboard(d_id):
                 keyboard = [
                     [
                         InlineKeyboardButton("⏳ ជិតដល់ហើយ (30%)", callback_data=f"status30_{d_id}"),
                         InlineKeyboardButton("✅ ដឹកជោគជ័យ", callback_data=f"statusdone_{d_id}")
+                    ],
+                    [
+                        InlineKeyboardButton("✅ ដឹកជញ្ជូនជោគជ័យ", callback_data=f"statusdone_{d_id}")
                     ]
                 ]
                 return InlineKeyboardMarkup(keyboard)
@@ -158,14 +194,13 @@ async def handle_normal_message(update: Update, context: ContextTypes.DEFAULT_TY
                 
                 dispatch_id = SETTINGS.get_last_insert_id(cursor)
                 
-                # ផ្ញើសារទៅ Driver ព្រមទាំងភ្ជាប់ប៊ូតុងបញ្ជា
                 await message.reply_text(
-                    f"✅ អតិថិជនចាស់ឈ្មោះ {cust_name} មានក្នុងប្រព័ន្ធ\n🚀 ប្រព័ន្ធបានផ្ញើសារដំណឹងទៅគាត់អូតូហើយ។\n\n👇 សម្រាប់ Driver ប្ដូរស្ថានភាពអីវ៉ាន់នេះ៖",
+                    f"✅ អតិថិជនចាស់ឈ្មោះ {cust_name} មានក្នុងប្រព័ន្ធ\n🚀 ប្រព័ន្ធបានផ្ញើសារដំណឹងទៅគាត់អូតូហើយ。\n\n👇 សម្រាប់ Driver ប្ដូរស្ថានភាពអីវ៉ាន់នេះ៖",
                     reply_markup=make_keyboard(dispatch_id)
                 )
                 
                 try:
-                    notify_text = f"🔔 ជំរាបសួរ លោក/អ្នក {cust_name}!\n📦 អីវ៉ាន់របស់អ្នកគឺ `{item_details}` កំពុងត្រូវបានដឹកជញ្ជូនមកហើយបាទបាទ។"
+                    notify_text = f"🔔 ជំរាបសួរ លោក/អ្នក {cust_name}!\n📦 អីវ៉ាន់របស់អ្នកគឺ `{item_details}` កុងពុងត្រូវបានដឹកជញ្ជូនមកហើយបាទបាទ។"
                     await context.bot.send_message(chat_id=cust_id, text=notify_text)
                 except Exception:
                     pass
@@ -177,7 +212,6 @@ async def handle_normal_message(update: Update, context: ContextTypes.DEFAULT_TY
                 bot_username = (await context.bot.get_me()).username
                 invite_link = f"https://t.me/{bot_username}?start=dispatch_{dispatch_id}"
                 
-                # ផ្ញើសារទៅ Driver ព្រមទាំងភ្ជាប់ប៊ូតុងបញ្ជា ទោះជាអ្នកថ្មីក៏ដោយ
                 await message.reply_text(
                     f"🔍 រកមិនឃើញលេខទូរសព្ទនេះទេ (អតិថិជនថ្មី)!\n👉🔗 សូមផ្ញើ Link នេះទៅកាន់គាត់៖\n{invite_link}\n\n👇 សម្រាប់ Driver ប្ដូរស្ថានភាពអីវ៉ាន់នេះ៖",
                     reply_markup=make_keyboard(dispatch_id)
@@ -197,28 +231,25 @@ async def handle_normal_message(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 # ========================================================
-# ៦. 🔥 មុខងារថ្មី៖ សម្រាប់ចាប់យកការចុចប៊ូតុង (Inline Button Handler)
+# ៦. មុខងារសម្រាប់ចាប់យកការចុចប៊ូតុង (Inline Button Handler)
 # ========================================================
 async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer() # ប្រាប់ទៅ Telegram វិញថាប៊ូតុងត្រូវបានចុចរួចរាល់
+    await query.answer() 
     
     data = query.data
     user_id = query.from_user.id
     
-    # ពិនិត្យមើលថាជា Driver ឬអត់
     if user_id not in SETTINGS.ADMIN_IDS:
         await query.message.reply_text("❌ លោកអ្នកគ្មានសិទ្ធិបញ្ជាប៊ូតុងនេះឡើយ!")
         return
 
-    # បំបែកទិន្នន័យពី Callback data (ឧទាហរណ៍៖ "status30_12" -> "status30" និង "12")
     if "_" in data:
         action, dispatch_id = data.split("_", 1)
         
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            # ទាញយកទិន្នន័យអីវ៉ាន់មកបង្ហាញ
             SETTINGS.execute_query(cursor, "SELECT customer_id, item_details FROM dispatches WHERE dispatch_id = %s", (dispatch_id,))
             dispatch_data = cursor.fetchone()
             
@@ -229,30 +260,35 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
                     new_status = "ជិតដល់ហើយ (30%)"
                     notify_text = (
                         f"⏳ **ដំណឹងពីអ្នកដឹកជញ្ជូន (Driver)!**\n\n"
-                        f"អីវ៉ាន់របស់អ្នក៖ `{item_details}` គឺធ្វើដំណើរបានជិតដល់ហើយ (សល់ចម្ងាយប្រហែល 30% ទៀត)។\n"
+                        f"អីវ៉ាន់របស់អ្នក៖ `{item_details}` គឺធ្វើដំណើរបានជិតដល់ហើយ (សល់ចម្ងាយប្រហែល 30% ទៀត)。\n"
                         f"📊 ស្ថានភាព៖ ⏳ `ជិតដល់ហើយ (30%)`\n\n"
                         f"📍 សូមលោកអ្នកត្រៀមខ្លួនទទួលអីវ៉ាន់បាទបាទ!"
                     )
                     confirm_msg = f"⏳ បានប្ដូរស្ថានភាពអីវ៉ាន់ ID: {dispatch_id} ទៅជា [ជិតដល់ហើយ (30%)] រួចរាល់!"
+                if action == "statusdeliv":
+                    new_status = "កំពុងដឹកជញ្ជូន"
+                    notify_text = (
+                        f"🚴 **ដំណឹងពីអ្នកដឹកជញ្ជូន (Driver)!**\n\n"
+                        f"អីវ៉ាន់របស់អ្នក៖ `{item_details}` គឺកំពុងដឹកជញ្ជូន។\n"
+                        f"📊 ស្ថានភាព៖ 🚴 `កំពុងដឹកជញ្ជូន`\n\n"
+                        f"📍 សូមលោកអ្នកត្រៀមខ្លួនទទួលអីវ៉ាន់បាទបាទ!"
+                    )
                 
                 elif action == "statusdone":
                     new_status = "ដឹកជញ្ជូនជោគជ័យ"
                     notify_text = (
-                        f"📦 **ដំណឹងដឹកជញ្ជូនសប្បាយចិត្ត!**\n\n"
+                        f"📦 **ដំណឹងដឹកជញ្ជូនសប្បាយចត្ត!**\n\n"
                         f"អីវ៉ាន់របស់អ្នក៖ `{item_details}` ត្រូវបានប្រគល់ជូនរួចរាល់ហើយបាទ。\n"
                         f"📊 ស្ថានភាព៖ ✅ `ដឹកជញ្ជូនជោគជ័យ`\n\n"
                         f"🙏 អរគុណលោកអ្នកដែលបានប្រើប្រាស់សេវាកម្មប្រព័ន្ធដឹកជញ្ជូន GS!"
                     )
                     confirm_msg = f"✅ បានប្ដូរស្ថានភាពអីវ៉ាន់ ID: {dispatch_id} ទៅជា [ដឹកជញ្ជូនជោគជ័យ] រួចរាល់!"
                 
-                # Update ចូល Database
                 SETTINGS.execute_query(cursor, "UPDATE dispatches SET status = %s WHERE dispatch_id = %s", (new_status, dispatch_id))
                 conn.commit()
                 
-                # កែប្រែអត្ថបទលើប៊ូតុងចាស់ កុំឱ្យចុចជាន់គ្នាទៀត
                 await query.edit_message_text(text=f"{query.message.text}\n\n⚙️ **បច្ចុប្បន្នភាព៖** {confirm_msg}")
                 
-                # ផ្ញើសារទៅកាន់អតិថិជន
                 if cust_id:
                     try:
                         await context.bot.send_message(chat_id=cust_id, text=notify_text)
