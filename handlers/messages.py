@@ -178,8 +178,11 @@ async def handle_normal_message(update: Update, context: ContextTypes.DEFAULT_TY
             def make_keyboard(d_id):
                 keyboard = [
                     [
+                        InlineKeyboardButton("🚴 កំពុងដឹកជញ្ជូន", callback_data=f"statusdeliv_{d_id}")
+                    ],
+                    [
                         InlineKeyboardButton("⏳ ជិតដល់ហើយ (30%)", callback_data=f"status30_{d_id}"),
-                        InlineKeyboardButton("✅ ដឹកជោគជ័យ", callback_data=f"statusdone_{d_id}")
+                        # InlineKeyboardButton("✅ ដឹកជោគជ័យ", callback_data=f"statusdone_{d_id}")
                     ],
                     [
                         InlineKeyboardButton("✅ ដឹកជញ្ជូនជោគជ័យ", callback_data=f"statusdone_{d_id}")
@@ -273,6 +276,7 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
                         f"📊 ស្ថានភាព៖ 🚴 `កំពុងដឹកជញ្ជូន`\n\n"
                         f"📍 សូមលោកអ្នកត្រៀមខ្លួនទទួលអីវ៉ាន់បាទបាទ!"
                     )
+                    confirm_msg = f"🚴 បានប្ដូរស្ថានភាពអីវ៉ាន់ ID: {dispatch_id} ទៅជា [កំពុងដឹកជញ្ជូន] រួចរាល់"
                 
                 elif action == "statusdone":
                     new_status = "ដឹកជញ្ជូនជោគជ័យ"
