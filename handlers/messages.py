@@ -287,7 +287,19 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
                 SETTINGS.execute_query(cursor, "UPDATE dispatches SET status = %s WHERE dispatch_id = %s", (new_status, dispatch_id))
                 conn.commit()
                 
-                await query.edit_message_text(text=f"{query.message.text}\n\n⚙️ **បច្ចុប្បន្នភាព៖** {confirm_msg}")
+                # await query.edit_message_text(
+                #     text=f"{query.message.text}\n\n⚙️ **បច្ចុប្បន្នភាព៖** {confirm_msg}",
+                #     reply_markup=query.message.reply_markup
+                # )
+                if action == "statusdone":
+                    await query.edit_message_text(
+                        text=f"{query.message.text}\n\n⚙️ **បច្ចុប្បន្នភាព៖** {confirm_msg}",
+                    )
+                else:
+                    await query.edit_message_text(
+                        text=f"{query.message.text}\n\n⚙️ **បច្ចុប្បន្នភាព៖** {confirm_msg}",
+                        reply_markup=query.message.reply_markup
+                    )
                 
                 if cust_id:
                     try:
