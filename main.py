@@ -1,8 +1,13 @@
 import os
 import asyncio
 from dotenv import load_dotenv
+from flask import app
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from dashboard.dashboard import setup_routes
+
+from telegram.ext import CallbackQueryHandler # ត្រូវប្រាកដថាមាន CallbackQueryHandler នេះ
+from handlers.messages import handle_normal_message, handle_callback_query # 👈 បន្ថែម ", handle_callback_query" ត្រង់នេះ
+
 from handlers.commands import (
     init_db,
     start_command,
@@ -65,7 +70,12 @@ async def main():
     application.add_handler(CommandHandler("share_location", share_location_command))
     application.add_handler(CommandHandler("scan_location", scan_location_command))
     application.add_handler(CommandHandler("track", track_command))
-    application.add_handler(MessageHandler(filters.TEXT | filters.CONTACT | filters.LOCATION, handle_normal_message))
+    # application.add_handler(MessageHandler(filters.TEXT | filters.CONTACT | filters.LOCATION, handle_normal_message))
+    # 📝 កែតម្រូវជួរនេះនៅក្នុង main.py
+    application.add_handler(MessageHandler((filters.TEXT | filters.CONTACT | filters.LOCATION) & ~filters.COMMAND, handle_normal_message))
+    
+    # ជួរនេះត្រឹមត្រូវហើយ ទុកដដែលបាទ
+    application.add_handler(CallbackQueryHandler(handle_callback_query))
 
     # រត់ Bot រហូត
     async with application:

@@ -1,4 +1,4 @@
-from telegram import Update, ReplyKeyboardMarkup
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ContextTypes
 from config import settings as SETTINGS
 
@@ -114,7 +114,18 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         SETTINGS.execute_query(cursor, "SELECT phone FROM users WHERE user_id = %s", (user_id,))
         user_data = cursor.fetchone()
 
+        # 🔥 រៀបចំ Option Keyboard ធំ (ស្តង់ដាររួមសម្រាប់អតិថិជន GS)
+        # ប៊ូតុងស្អាតៗ និងមាន Option ច្រើនសម្រាប់ជ្រើសរើស
+        customer_keyboard = [
+            [KeyboardButton("📦 ពិនិត្យមើលអីវ៉ាន់បច្ចុប្បន្ន")],
+            [KeyboardButton("📍 ផ្ញើទីតាំងបច្ចុប្បន្ន (Share Location)", request_location=True)],
+            [KeyboardButton("📜 មើលប្រវត្តិដឹកជញ្ជូន"), KeyboardButton("📞 ជំនួយការ & ទំនាក់ទំនង")]
+        ]
+        reply_markup_standard = ReplyKeyboardMarkup(customer_keyboard, resize_keyboard=True, one_time_keyboard=False)
+
+        # ----------------------------------------------------
         # ករណីទី ១៖ រកមិនឃើញ ID = USER NEW (ចុះឈ្មោះគាត់ចូល Cloud)
+        # ----------------------------------------------------
         if user_data is None:
             SETTINGS.execute_query(
                 cursor,
@@ -130,20 +141,25 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             welcome_text = (
                 f"👋 សួស្តីសមាជិកថ្មី លោក/អ្នក {first_name}! មកកាន់ប្រព័ន្ធដឹកជញ្ជូន GS។\n\n"
-                "🙏 ដើម្បីភាពងាយស្រួលក្នុងការទទួលទិន្នន័យអីវ៉ាន់ និងការទាក់ទងពីអ្នកដឹកជញ្ជូន "
-                "សូមចុចប៊ូតុងខាងក្រោមដើម្បីចែករំលែកលេខទូរសព្ទ ឬផ្ញើទីតាំងស្កេនទំនិញ។"
+                "🙏 ដើម្បីភាពងាយស្រួលក្នុងការទទួលបានទិន្នន័យអីវ៉ាន់ និងការទំនាក់ទំនង "
+                "សូមចុចប៊ូតុង **📱 ចែករំលែកលេខទូរសព្ទ** ខាងក្រោមនេះជាមុនសិនណា ដើម្បីឱ្យប្រព័ន្ធកត់ត្រាលេខរបស់អ្នកបាទបាទ។"
             )
-            keyboard = [
-                [{"text": "📱 ចែកលេខទូរសព្ទ", "request_contact": True}],
-                [{"text": "📍 ផ្ញើទីតាំង", "request_location": True}],
-                [{"text": "📦 ពិនិត្យមើលអីវ៉ាន់បច្ចុប្បន្ន"}],
-                [{"text": "📞 ទាក់ទងភ្នាក់ងារផ្ទាល់"}]
+            
+            # សម្រាប់អ្នកថ្មី៖ បន្ថែមប៊ូតុង ចែកលេខទូរសព្ទ មួយនៅខាងលើគេបង្អស់
+            new_user_keyboard = [
+                [KeyboardButton("📱 ចែករំលែកលេខទូរសព្ទ", request_contact=True)],
+                [KeyboardButton("📦 ពិនិត្យមើលអីវ៉ាន់បច្ចុប្បន្ន")],
+                [KeyboardButton("📍 ផ្ញើទីតាំងបច្ចុប្បន្ន (Share Location)", request_location=True)],
+                [KeyboardButton("📜 មើលប្រវត្តិដឹកជញ្ជូន"), KeyboardButton("📞 ជំនួយការ & ទំនាក់ទំនង")]
             ]
-            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
-            await update.message.reply_text(welcome_text, reply_markup=reply_markup)
+            reply_markup_new = ReplyKeyboardMarkup(new_user_keyboard, resize_keyboard=True)
+            
+            await update.message.reply_text(welcome_text, reply_markup=reply_markup_new)
             return
 
+        # ----------------------------------------------------
         # ករណីទី ២៖ រកឃើញ ID = USER OLD (អតិថិជនចាស់)
+        # ----------------------------------------------------
         else:
             phone_number = user_data[0]
             
@@ -151,9 +167,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 SETTINGS.execute_query(cursor, "UPDATE dispatches SET customer_id = %s WHERE dispatch_id = %s", (user_id, int(dispatch_id)))
                 conn.commit()
 
-        # 🔥 កែសម្រួលថ្មី៖ ស្វែងរកអីវ៉ាន់ឱ្យមានសុវត្ថិភាព ការពារការជាន់ទិន្នន័យករណីមិនទាន់មានលេខទូរសព្ទ (Null Phone)
+        # ស្វែងរកអីវ៉ាន់ឱ្យមានសុវត្ថិភាព ការពារការជាន់ទិន្នន័យករណីមិនទាន់មានលេខទូរសព្ទ
         if phone_number:
-            # បង្កើតបំលែងលេខទូរសព្ទដើម្បីស្វែងរកឱ្យកាន់តែឆ្លាតវៃ (ទម្រង់ 012 និង 855)
             phone_variant = f"855{phone_number[1:]}" if phone_number.startswith("0") else phone_number
             phone_variant2 = f"0{phone_number[3:]}" if phone_number.startswith("855") else phone_number
             
@@ -173,30 +188,22 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
         active_delivery = cursor.fetchone()
 
-        delivery_info = ""
         if active_delivery:
-            delivery_info = f"🔔 ព័ត៌មានអីវ៉ាន់បច្ចុប្បន្ន៖ {active_delivery[0]} ({active_delivery[1]})"
+            status_emoji = "🚴" if active_delivery[1] == "កំពុងដឹកជញ្ជូន" else ("⏳" if "30%" in active_delivery[1] else "✅")
+            delivery_info = f"📦 **ព័ត៌មានអីវ៉ាន់បច្ចុប្បន្ន៖** `{active_delivery[0]}`\n📊 **ស្ថានភាព៖** {status_emoji} `{active_delivery[1]}`"
         else:
-            delivery_info = "📦 ស្ថានភាព៖ មិនទាន់មានអីវ៉ាន់កំពុងដឹកមកជូនអ្នកឡើយទេ"
+            delivery_info = "📦 **ស្ថានភាព៖** មិនទាន់មានអីវ៉ាន់កំពុងដឹកមកជូនអ្នកឡើយទេបាទ។"
 
         welcome_text = (
-            f"🎉 រីករាយដែលបានជួបអ្នកម្តងទៀត លោក/អ្នក {first_name} (អតិថិជនចាស់)!\n"
-            f"📞 លេខទូរសព្ទរបស់អ្នក៖ {phone_number if phone_number else 'មិនទាន់ចុះឈ្មោះ'}\n"
+            f"🎉 រីករាយដែលបានជួបអ្នកម្តងទៀត លោក/អ្នក {first_name}!\n"
+            f"📞 លេខទូរសព្ទរបស់អ្នក៖ `{phone_number if phone_number else 'មិនទាន់ចុះឈ្មោះ'}`\n"
             f"----------------------------------------\n"
             f"{delivery_info}\n\n"
-            "👉 សូមជ្រើសរើសសេវាកម្ម៖\n"
-            "📍 /share_location - ផ្ញើទីតាំងទៅកាន់អ្នកដឹកជញ្ជូន\n"
-            "🧾 /scan_location - ស្កេនកន្លែងទំនិញ\n"
-            "🔍 /track - តាមដានស្ថានភាពអីវ៉ាន់លម្អិត"
+            f"👉 សូមចុចជ្រើសរើសជម្រើស (Options) ខាងក្រោមដើម្បីប្រើប្រាស់សេវាកម្ម៖"
         )
         
-        keyboard = [
-            ["📦 ពិនិត្យមើលអីវ៉ាន់បច្ចុប្បន្ន"],
-            [{"text": "📍 ផ្ញើទីតាំងបច្ចុប្បន្ន (Share Location)", "request_location": True}],
-            ["📞 ទាក់ទងភ្នាក់ងារផ្ទាល់"]
-        ]
-        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-        await update.message.reply_text(welcome_text, reply_markup=reply_markup)
+        await update.message.reply_text(welcome_text, reply_markup=reply_markup_standard)
+        
     except Exception as err:
         print(f"DB query failed in /start: {err}")
         await update.message.reply_text(
@@ -278,5 +285,4 @@ async def track_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"កាលបរិច្ឆេទ៖ {formatted_date}"
         )
     else:
-        # 🔥 កែសម្រួលឱ្យត្រូវទម្រង់ Telegram Extension ជំនាន់ទី ២០
         await update.message.reply_text("📦 មិនមានការដឹកជញ្ជូនពេលនេះទេ។ សូមបញ្ចូលលេខទូរសព្ទ ហើយឈ្មោះអីវ៉ាន់របស់អតិថិជន។")
