@@ -153,7 +153,7 @@ async def handle_normal_message(update: Update, context: ContextTypes.DEFAULT_TY
         await message.reply_text(help_text)
         return
 
-    # ========================================================
+# ========================================================
     # ៤. ករណី Driver បញ្ចូលទិន្នន័យដំបូង (Format: លេខទូរសព្ទ - ឈ្មោះអីវ៉ាន់)
     # ========================================================
     if "-" in text_received:
@@ -175,49 +175,56 @@ async def handle_normal_message(update: Update, context: ContextTypes.DEFAULT_TY
             SETTINGS.execute_query(cursor, "SELECT user_id, first_name FROM users WHERE phone IN (%s, %s, %s)", (phone_variant1, phone_variant2, phone_variant3))
             customer_data = cursor.fetchone()
             
-            def make_keyboard(d_id):
+            # ✅ កែសម្រួលមុខងារបង្កើតប៊ូតុង៖ ជំហានដំបូងបង្ហាញតែប៊ូតុង "កំពុងដឹកជញ្ជូន" មួយគត់
+            def make_initial_keyboard(d_id):
                 keyboard = [
                     [
                         InlineKeyboardButton("🚴 កំពុងដឹកជញ្ជូន", callback_data=f"statusdeliv_{d_id}")
-                    ],
-                    [
-                        InlineKeyboardButton("⏳ ជិតដល់ហើយ (30%)", callback_data=f"status30_{d_id}"),
-                        # InlineKeyboardButton("✅ ដឹកជោគជ័យ", callback_data=f"statusdone_{d_id}")
-                    ],
-                    [
-                        InlineKeyboardButton("✅ ដឹកជញ្ជូនជោគជ័យ", callback_data=f"statusdone_{d_id}")
                     ]
                 ]
                 return InlineKeyboardMarkup(keyboard)
 
             if customer_data:
                 cust_id, cust_name = customer_data
-                SETTINGS.execute_query(cursor, "INSERT INTO dispatches (driver_id, customer_phone, customer_id, item_details) VALUES (%s, %s, %s, %s)", (user_id, customer_phone, cust_id, item_details))
+                
+                # ✅ កែសម្រួលថែម column `status` និងតម្លៃ `"សូមរង់ចាំ"` ទៅក្នុង Database
+                SETTINGS.execute_query(
+                    cursor, 
+                    "INSERT INTO dispatches (driver_id, customer_phone, customer_id, item_details, status) VALUES (%s, %s, %s, %s, %s)", 
+                    (user_id, customer_phone, cust_id, item_details, "សូមរង់ចាំ")
+                )
                 conn.commit()
                 
                 dispatch_id = SETTINGS.get_last_insert_id(cursor)
                 
+                # 🖥️ បង្ហាញផ្ទាំង Chat ទៅ Driver ជាមួយប៊ូតុង "កំពុងដឹកជញ្ជូន" តែមួយគត់
                 await message.reply_text(
                     f"✅ អតិថិជនចាស់ឈ្មោះ {cust_name} មានក្នុងប្រព័ន្ធ\n🚀 ប្រព័ន្ធបានផ្ញើសារដំណឹងទៅគាត់អូតូហើយ。\n\n👇 សម្រាប់ Driver ប្ដូរស្ថានភាពអីវ៉ាន់នេះ៖",
-                    reply_markup=make_keyboard(dispatch_id)
+                    reply_markup=make_initial_keyboard(dispatch_id)
                 )
                 
                 try:
-                    notify_text = f"🔔 ជំរាបសួរ លោក/អ្នក {cust_name}!\n📦 អីវ៉ាន់របស់អ្នកគឺ `{item_details}` កុងពុងត្រូវបានដឹកជញ្ជូនមកហើយបាទបាទ។"
+                    notify_text = f"🔔 ជំរាបសួរ លោក/អ្នក {cust_name}!\n📦 អីវ៉ាន់របស់អ្នកគឺ `{item_details}` កំពុងស្ថិតក្នុងស្ថានភាព៖ ⏳ `សូមរង់ចាំ`"
                     await context.bot.send_message(chat_id=cust_id, text=notify_text)
                 except Exception:
                     pass
             else:
-                SETTINGS.execute_query(cursor, "INSERT INTO dispatches (driver_id, customer_phone, item_details) VALUES (%s, %s, %s)", (user_id, customer_phone, item_details))
+                # ✅ កែសម្រួលករណីអតិថិជនថ្មី៖ ថែម `status` និងតម្លៃ `"សូមរង់ចាំ"` ទៅក្នុង Database ដូចគ្នា
+                SETTINGS.execute_query(
+                    cursor, 
+                    "INSERT INTO dispatches (driver_id, customer_phone, item_details, status) VALUES (%s, %s, %s, %s)", 
+                    (user_id, customer_phone, item_details, "សូមរង់ចាំ")
+                )
                 conn.commit()
                 
                 dispatch_id = SETTINGS.get_last_insert_id(cursor)
                 bot_username = (await context.bot.get_me()).username
                 invite_link = f"https://t.me/{bot_username}?start=dispatch_{dispatch_id}"
                 
+                # 🖥️ បង្ហាញផ្ទាំង Chat ទៅ Driver ជាមួយប៊ូតុង "កំពុងដឹកជញ្ជូន" តែមួយគត់
                 await message.reply_text(
                     f"🔍 រកមិនឃើញលេខទូរសព្ទនេះទេ (អតិថិជនថ្មី)!\n👉🔗 សូមផ្ញើ Link នេះទៅកាន់គាត់៖\n{invite_link}\n\n👇 សម្រាប់ Driver ប្ដូរស្ថានភាពអីវ៉ាន់នេះ៖",
-                    reply_markup=make_keyboard(dispatch_id)
+                    reply_markup=make_initial_keyboard(dispatch_id)
                 )
         finally:
             cursor.close()
