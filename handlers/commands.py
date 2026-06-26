@@ -93,6 +93,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     first_name = user.first_name
     username = user.username if user.username else "No_Username"
 
+
     # ឆែកមើលថាតើគាត់ចូលតាមរយៈ Link ពិសេស (Deep Linking) របស់ Driver ដែរឬទេ
     args = context.args
     dispatch_id = None
